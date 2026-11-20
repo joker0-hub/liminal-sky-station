@@ -88,9 +88,16 @@
 			notice.textContent = message;
 			notice.hidden = false;
 			retry.hidden = false;
+			retry.focus();
 		}
 		retry.addEventListener('click', () => location.reload());
-		canvas.addEventListener('webglcontextlost', () => fail('图形连接已中断，请重新加载车站。'));
+		canvas.addEventListener('webglcontextlost', event => {
+			event.preventDefault();
+			// Use the reload panel in place of the engine's blocking alert.
+			event.stopImmediatePropagation();
+			document.exitPointerLock?.();
+			fail('图形连接已中断，请重新加载车站。');
+		});
 
 		const missing = typeof Engine === 'undefined'
 			? ['Godot loader unavailable']
