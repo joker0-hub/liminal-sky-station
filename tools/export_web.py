@@ -32,11 +32,33 @@ def limit_textures(staged_project):
         settings = source.read_text(encoding="utf-8")
         # Keep the long, narrow floor bakes sharp along the platform.
         limit = 1536 if source.name.startswith("sky-") else 2048
-        source.write_text(settings.replace("process/size_limit=0", f"process/size_limit={limit}"), encoding="utf-8")
+        settings = settings.replace("process/size_limit=0", f"process/size_limit={limit}")
+        if source.name.startswith("sky-glass-"):
+            settings = settings.replace("mipmaps/generate=false", "mipmaps/generate=true")
+        source.write_text(settings, encoding="utf-8")
 
     for source in (staged_project / "assets/textures").glob("stone-*.import"):
         settings = source.read_text(encoding="utf-8")
         source.write_text(settings.replace("mipmaps/generate=false", "mipmaps/generate=true"), encoding="utf-8")
+
+
+def optimize_geometry(scratch, staged_project):
+    npm = shutil.which("npm.cmd" if os.name == "nt" else "npm")
+    node = shutil.which("node")
+    if not npm or not node:
+        raise SystemExit("Node.js and npm are required to optimize the Web meshes.")
+    tool = scratch / "optimize_web_meshes.mjs"
+    shutil.copy2(PROJECT / "tools" / tool.name, tool)
+    subprocess.run(
+        [
+            npm, "install", "--prefix", str(scratch), "--no-save", "--no-package-lock",
+            "--no-audit", "--no-fund", "--ignore-scripts", "@gltf-transform/core@4.5.1",
+            "@gltf-transform/extensions@4.5.1", "@gltf-transform/functions@4.5.1", "meshoptimizer@1.3.0",
+        ],
+        check=True,
+    )
+    models = staged_project / "assets/v048"
+    subprocess.run([node, str(tool), str(models / "station-v048.glb"), str(models / "train-v048.glb")], check=True)
 
 
 def export(godot, destination):
@@ -44,11 +66,12 @@ def export(godot, destination):
         scratch = Path(working).resolve()
         staged_project = scratch / "project"
         staged_project.mkdir()
-        for folder in ("assets", "scripts", "shaders"):
+        for folder in ("assets", "scripts", "shaders", "web"):
             shutil.copytree(PROJECT / folder, staged_project / folder)
         for name in ("project.godot", "station.tscn", "export_presets.cfg"):
             shutil.copy2(PROJECT / name, staged_project / name)
         limit_textures(staged_project)
+        optimize_geometry(scratch, staged_project)
 
         output = scratch / "output"
         output.mkdir()

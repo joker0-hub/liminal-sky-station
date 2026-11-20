@@ -56,6 +56,8 @@ static func _add_batch(parent: Node3D, stone: Mesh, placements: Array, center_x:
 	var segment := MultiMeshInstance3D.new()
 	segment.position.x = center_x
 	segment.layers = 16
+	if OS.has_feature("web"):
+		segment.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	segment.multimesh = instances
 	parent.add_child(segment)
 

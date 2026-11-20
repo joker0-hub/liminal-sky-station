@@ -5,7 +5,8 @@ const MIRROR := Vector3(1.0, -1.0, 1.0)
 const PLATFORM_LAYER := 1 << 5
 const STILL_HEIGHT := 900
 const MOVING_HEIGHT := 540
-const WEB_HEIGHT := 432
+const WEB_HEIGHT := 324
+const WEB_MOTION_INTERVAL_MSEC := 33
 const SETTLE_MSEC := 160
 
 var reflection_camera: Camera3D
@@ -13,6 +14,8 @@ var last_view := Transform3D.IDENTITY
 var last_fov := 0.0
 var needs_refresh := true
 var last_motion_msec := 0
+var last_capture_msec := 0
+var web := OS.has_feature("web")
 
 
 func configure(source_environment: Environment) -> void:
@@ -20,6 +23,8 @@ func configure(source_environment: Environment) -> void:
 	use_hdr_2d = RenderingServer.get_current_rendering_method() != "gl_compatibility"
 	scaling_3d_scale = 1.0
 	positional_shadow_atlas_size = 0
+	if web:
+		mesh_lod_threshold = 7.0
 	render_target_update_mode = SubViewport.UPDATE_DISABLED
 
 	var reflection_environment := source_environment.duplicate() as Environment
@@ -60,10 +65,13 @@ func follow(source: Camera3D, active: bool, moving_scene: bool) -> bool:
 		last_motion_msec = now
 	var moving := now - last_motion_msec < SETTLE_MSEC
 	# Keep the sampled viewport texture allocated while the Web camera moves.
-	var max_height := WEB_HEIGHT if OS.has_feature("web") else (MOVING_HEIGHT if moving else STILL_HEIGHT)
+	var max_height := WEB_HEIGHT if web else (MOVING_HEIGHT if moving else STILL_HEIGHT)
 	var height := clampi(roundi(display.y), 8, max_height)
 	var target_size := Vector2i(maxi(8, roundi(height * aspect)), height)
 	if not (needs_refresh or moving_scene or camera_changed or size != target_size):
+		return true
+	# Keep camera turns in sync. Only the train can reuse the previous frame.
+	if web and not (camera_changed or needs_refresh or size != target_size) and now - last_capture_msec < WEB_MOTION_INTERVAL_MSEC:
 		return true
 
 	var position := source_pose.origin
@@ -77,6 +85,7 @@ func follow(source: Camera3D, active: bool, moving_scene: bool) -> bool:
 		size = target_size
 	last_view = source_pose
 	last_fov = source.fov
+	last_capture_msec = now
 	needs_refresh = false
 	render_target_update_mode = SubViewport.UPDATE_ONCE
 	return true

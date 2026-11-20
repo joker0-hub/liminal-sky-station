@@ -9,6 +9,7 @@ uniform sampler2D depth_buffer : hint_depth_texture, filter_nearest;
 uniform vec3 volume_min;
 uniform vec3 volume_max;
 uniform vec3 sun_from;
+uniform int march_steps = 20;
 varying vec3 box_world_position;
 
 void vertex() {
@@ -20,12 +21,12 @@ void fragment() {
 	vec3 ray = normalize(box_world_position - origin);
 	vec2 interval = volume_span(origin, ray, volume_min, volume_max);
 	float start = interval.x;
+	if (interval.y <= start) discard;
 	float end = min(interval.y, opaque_distance(depth_buffer, SCREEN_UV, INV_PROJECTION_MATRIX));
 	if (end <= start) discard;
-	const int steps = 20;
-	float stride = (end - start) / float(steps);
+	float stride = (end - start) / float(march_steps);
 	float scattering = 0.0;
-	for (int i = 0; i < steps; i++) {
+	for (int i = 0; i < march_steps; i++) {
 		float travel = start + (float(i) + 0.5) * stride;
 		vec3 point = origin + ray * travel;
 		vec3 edge = min(point - volume_min, volume_max - point);

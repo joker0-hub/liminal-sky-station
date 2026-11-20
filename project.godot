@@ -22,10 +22,11 @@ window/vsync/vsync_mode=1
 
 renderer/rendering_method="forward_plus"
 renderer/rendering_method.web="gl_compatibility"
-scaling_3d/scale.web=0.8
+mesh_lod/lod_change/threshold_pixels.web=3.0
 lights_and_shadows/directional_shadow/size.web=2048
 lights_and_shadows/positional_shadow/atlas_size.web=1024
 anti_aliasing/quality/msaa_3d=1
+anti_aliasing/quality/msaa_3d.web=0
 anti_aliasing/quality/use_taa=false
 lights_and_shadows/directional_shadow/size=4096
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3

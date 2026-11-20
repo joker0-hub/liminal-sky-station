@@ -6,6 +6,7 @@ const StationHUD := preload("res://scripts/station_hud.gd")
 const StationClock := preload("res://scripts/station_clock.gd")
 const FloorReflection := preload("res://scripts/floor_reflection.gd")
 const BoardingMotion := preload("res://scripts/boarding_motion.gd")
+const WebRenderBudget := preload("res://scripts/web_render_budget.gd")
 const KEYS := ["platform", "overlook"]
 const CAPTURE_KEYS := ["platform", "overlook", "viaduct", "carriage"]
 const CLOUD_SPEED := 21.0
@@ -36,6 +37,7 @@ var active_view := 0
 var opening_active := true
 var notice_sequence := 0
 var station_clock: StationClock
+var web_budget: WebRenderBudget
 
 
 func _ready() -> void:
@@ -65,6 +67,9 @@ func _ready() -> void:
 				stone.set_shader_parameter("raking_lamp_color", color)
 			break
 	native_cloud = Visuals.add_cloud_volume(self)
+	if OS.has_feature("web"):
+		web_budget = WebRenderBudget.new()
+		web_budget.configure(get_viewport(), native_cloud)
 	walkable = Collision.build(self, station, train)
 	boarding = BoardingMotion.new()
 	boarding.name = "V048_BoardingMotion"
@@ -254,6 +259,8 @@ func _arrive_from_west() -> void:
 
 
 func _process(delta: float) -> void:
+	if web_budget:
+		web_budget.tick()
 	if station_clock and station_clock.update_from_system() and reflection:
 		reflection.needs_refresh = true
 	if not opening_active and active_view == 1 and get_window().has_focus():

@@ -24,6 +24,8 @@ uniform float metalness;
 uniform float coat_weight;
 uniform float coat_roughness;
 uniform float grain_height;
+uniform bool use_arch_radiance = false;
+uniform sampler2D arch_radiance : filter_linear_mipmap, repeat_enable;
 varying vec3 surface_position;
 varying vec3 station_position;
 
@@ -48,7 +50,11 @@ void fragment() {
 		NORMAL_MAP_DEPTH = normal_depth;
 	} else {
 		vec3 coordinates = surface_position * noise_aspect;
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+		float patina = filtered_finish_noise(coordinates * patina_scale);
+#else
 		float patina = finish_patina(coordinates * patina_scale);
+#endif
 		float grain = filtered_finish_noise(coordinates * grain_scale);
 		base = mix(dark_pigment, light_pigment, clamp((patina - 0.20) / 0.61, 0.0, 1.0));
 		ROUGHNESS = roughness_base + 0.15 * grain;
@@ -81,6 +87,16 @@ void fragment() {
 	}
 	ALBEDO = min(base * tone, vec3(1.0));
 #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+	if (use_arch_radiance) {
+		METALLIC = max(METALLIC, metalness);
+		vec3 eye = normalize(VIEW);
+		float grazing = 1.0 - abs(dot(eye, geometric_normal));
+		vec3 ray = mat3(INV_VIEW_MATRIX) * reflect(-eye, NORMAL);
+		vec2 uv = vec2(0.5 + atan(ray.x, -ray.z) / TAU, 0.5 - asin(clamp(ray.y, -1.0, 1.0)) / PI);
+		vec3 radiance = min(textureLod(arch_radiance, uv, 1.0 + 5.0 * ROUGHNESS).rgb, vec3(1.4));
+		vec3 steel = mix(ALBEDO, vec3(0.23, 0.30, 0.39), 0.43);
+		EMISSION = 0.76 * linear_to_display(radiance * steel * (0.30 + 0.30 * grazing * grazing));
+	}
 	ALBEDO = linear_to_display(ALBEDO);
 #endif
 	METALLIC *= mix(1.0, exposed_metal_scale, track_face);

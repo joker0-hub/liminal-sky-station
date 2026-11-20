@@ -2,7 +2,7 @@
 
 ## [▶ 在线进入天空车站](https://joker0-hub.github.io/liminal-sky-station/)
 
-在浏览器里漫游月台、飞进云海，看列车从西侧进站。首次加载约需下载 189 MB。
+在浏览器里漫游月台、飞进云海，看列车从西侧进站。首次加载约需下载 149 MB。
 
 [![天空车站开场，点击进入网页版](docs/sky-station-opening.webp)](https://joker0-hub.github.io/liminal-sky-station/)
 
@@ -24,7 +24,9 @@
 
 双击 `预览网页版.cmd` 打开本地浏览器预览。网页产物位于同级的 `liminal-godot-web/`，可以作为一整套静态文件部署。网页保留中文开场、月台探索、镜头控制和列车进站。
 
-安装 Godot 4.7.2 的 Web 单线程导出模板后，用 `python tools/export_web.py` 重新构建。脚本在临时工程中导入浏览器用纹理，并使用 `Web` 导出预设。网页端采用 WebGL 2 兼容渲染、缩小的体积云网格和随包的中文字体。
+安装 Godot 4.7.2 的 Web 单线程导出模板和 Node.js 22 或以上版本后，用 `python tools/export_web.py` 重新构建。脚本在临时工程中优化高面数网格和浏览器用纹理，并使用 `Web` 导出预设。网页端采用 WebGL 2 兼容渲染、缩小的体积云网格和随包的中文字体。
+
+网页画布上限为 2560 × 1440。3D 渲染按浏览器刷新率自适应，帧率目标最高为 90 FPS。掉帧时先调整几何细节和云层采样，再尝试降低 3D 分辨率。界面仍按画布分辨率绘制。可在网址后加 `?quality=2k` 锁定画布原生分辨率，或加 `?stats` 在开发者工具中用 `window.liminalRender` 查看帧率和缩放比例。
 
 ## 场景来源
 

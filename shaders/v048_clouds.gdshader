@@ -24,6 +24,7 @@ void fragment() {
 	vec3 ray = normalize(box_world_position - origin);
 	vec2 interval = volume_span(origin, ray, cloud_min, cloud_max);
 	float start = interval.x;
+	if (interval.y <= start) discard;
 	float end = min(interval.y, opaque_distance(depth_buffer, SCREEN_UV, INV_PROJECTION_MATRIX) - 0.05);
 	if (end <= start) discard;
 
@@ -31,20 +32,24 @@ void fragment() {
 	// A fixed spatial offset breaks up long parallel steps without temporal noise.
 	float dither = fract(52.9829189 * fract(dot(FRAGCOORD.xy, vec2(0.06711056, 0.00583715))));
 	float distance_along_ray = start + stride * (0.17 + 0.66 * dither);
-	vec3 span = cloud_max - cloud_min;
+	vec3 inverse_span = 1.0 / (cloud_max - cloud_min);
+	vec3 uvw = (origin + distance_along_ray * ray - cloud_min) * inverse_span;
+	vec3 uv_step = ray * stride * inverse_span;
+	float absorption = authored_density_max * extinction * stride;
 	float transmission = 1.0;
 	float illumination = 0.0;
 	float elevation = 0.0;
 	for (int step_index = 0; step_index < march_steps; step_index++) {
 		if (distance_along_ray > end || transmission < 0.009) break;
-		vec3 uvw = (origin + distance_along_ray * ray - cloud_min) / span;
 		vec2 data = textureLod(cloud_field, uvw, 0.0).rg;
-		float opacity = 1.0 - exp(-data.r * authored_density_max * extinction * stride);
-		float contribution = transmission * opacity;
-		illumination += contribution * data.g;
-		elevation += contribution * uvw.y;
-		transmission *= 1.0 - opacity;
+		if (data.r > 0.0) {
+			float contribution = transmission * (1.0 - exp(-data.r * absorption));
+			illumination += contribution * data.g;
+			elevation += contribution * uvw.y;
+			transmission -= contribution;
+		}
 		distance_along_ray += stride;
+		uvw += uv_step;
 	}
 	float alpha = 1.0 - transmission;
 	if (alpha < 0.002) discard;

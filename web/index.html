@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>$GODOT_PROJECT_NAME</title>
+	$GODOT_HEAD_INCLUDE
+	<style>
+		:root { color-scheme: dark; background: #111b2b; color: #f4ecdf; }
+		body { margin: 0; overflow: hidden; font: 15px/1.5 system-ui, sans-serif; }
+		#canvas { display: block; width: 100vw; height: 100dvh; outline: none; touch-action: none; }
+		#status {
+			position: fixed; inset: 0; display: grid; place-content: center; justify-items: center;
+			gap: 12px; padding: 24px; text-align: center;
+			background: radial-gradient(ellipse at 50% 36%, #273e58, #111b2b 66%);
+		}
+		#status[hidden], [hidden] { display: none; }
+		#status img { width: 64px; height: 64px; object-fit: contain; }
+		h1 { margin: 0; font: 500 clamp(28px, 6vw, 48px)/1.2 Georgia, serif; letter-spacing: 0.14em; }
+		progress { width: min(64vw, 260px); height: 9px; accent-color: #d6aa84; }
+		p { margin: 0; color: #d2c4b7; }
+		button {
+			padding: 8px 20px; border: 1px solid #d6aa84; border-radius: 4px;
+			background: #25384d; color: #f4ecdf; font: inherit; cursor: pointer;
+		}
+	</style>
+</head>
+<body>
+	<canvas id="canvas" aria-label="天空车站实时场景"></canvas>
+	<main id="status">
+		<img src="$GODOT_SPLASH" alt="">
+		<h1>天空车站</h1>
+		<p id="loading" role="status">正在加载车站</p>
+		<progress max="1" aria-label="车站资源加载进度"></progress>
+		<p id="status-notice" role="alert" hidden></p>
+		<button type="button" hidden>重新加载</button>
+		<noscript>请启用 JavaScript 进入车站。</noscript>
+	</main>
+	<script src="$GODOT_URL"></script>
+	<script>
+		const canvas = document.querySelector('#canvas');
+		const status = document.querySelector('#status');
+		const progress = status.querySelector('progress');
+		const loading = status.querySelector('#loading');
+		const notice = status.querySelector('#status-notice');
+		const retry = status.querySelector('button');
+
+		// Keep display aspect and cap the backing buffer at 2560 × 1440.
+		function sizeCanvas() {
+			const { width, height } = canvas.getBoundingClientRect();
+			if (!width || !height) return;
+			const ratio = Math.min(devicePixelRatio, 2560 / width, 1440 / height);
+			const w = Math.max(1, Math.round(width * ratio));
+			const h = Math.max(1, Math.round(height * ratio));
+			if (canvas.width !== w) canvas.width = w;
+			if (canvas.height !== h) canvas.height = h;
+		}
+		sizeCanvas();
+		new ResizeObserver(sizeCanvas).observe(canvas);
+		window.addEventListener('resize', sizeCanvas);
+
+		const settings = new URLSearchParams(location.search);
+		window.stationNativeResolution = settings.get('quality') === '2k';
+		if (settings.has('stats')) window.liminalRender = {};
+
+		// Sample before the game starts so a 60 Hz browser uses a 60 FPS budget.
+		const refreshPromise = new Promise(resolve => {
+			const intervals = [];
+			let previous = 0;
+			function measure(timestamp) {
+				if (previous && timestamp > previous) intervals.push(timestamp - previous);
+				previous = timestamp;
+				if (intervals.length < 18) {
+					requestAnimationFrame(measure);
+				} else {
+					intervals.sort((a, b) => a - b);
+					resolve(1000 / intervals[4]);
+				}
+			}
+			requestAnimationFrame(measure);
+		});
+
+		function fail(message, detail) {
+			if (detail) console.error(detail);
+			if (!status.isConnected) document.body.append(status);
+			progress.hidden = true;
+			loading.hidden = true;
+			notice.textContent = message;
+			notice.hidden = false;
+			retry.hidden = false;
+		}
+		retry.addEventListener('click', () => location.reload());
+		canvas.addEventListener('webglcontextlost', () => fail('图形连接已中断，请重新加载车站。'));
+
+		const missing = typeof Engine === 'undefined'
+			? ['Godot loader unavailable']
+			: Engine.getMissingFeatures({ threads: $GODOT_THREADS_ENABLED });
+		if (missing.length) {
+			const message = typeof Engine === 'undefined'
+				? '车站加载失败，请重新加载。'
+				: '当前浏览器无法运行车站，请确认已启用 WebGL 2。';
+			fail(message, missing.join('\n'));
+		} else {
+			const engine = new Engine($GODOT_CONFIG);
+			const timeout = new Promise(resolve => setTimeout(() => resolve(60), 600));
+			Promise.race([refreshPromise, timeout]).then(hz => {
+				window.stationDisplayHz = hz;
+				return engine.startGame({
+					canvas,
+					onProgress(current, total) {
+						if (total > 0) progress.value = current / total;
+						else progress.removeAttribute('value');
+						if (total > 0 && current >= total) loading.textContent = '正在准备场景';
+					},
+				});
+			}).then(() => {
+				if (notice.hidden) status.remove();
+			}, error => fail('车站加载失败，请重新加载。', error));
+		}
+	</script>
+</body>
+</html>

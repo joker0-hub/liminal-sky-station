@@ -64,7 +64,7 @@ static func build_environment(target: Node3D) -> Environment:
 	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color(0.455, 0.583, 0.835).linear_to_srgb()
-	environment.ambient_light_energy = 0.49 if forward else 0.64
+	environment.ambient_light_energy = 0.54 if web else (0.49 if forward else 0.64)
 	environment.ambient_light_sky_contribution = 0.0
 	environment.tonemap_mode = Environment.TONE_MAPPER_AGX
 	environment.tonemap_exposure = pow(2.0, -0.52)
@@ -129,6 +129,8 @@ static func _add_platform_air(target: Node3D, forward: bool) -> void:
 		material.set_shader_parameter("volume_min", center - bounds * 0.5)
 		material.set_shader_parameter("volume_max", center + bounds * 0.5)
 		material.set_shader_parameter("sun_from", SUN_FROM.normalized())
+		if OS.has_feature("web"):
+			material.set_shader_parameter("march_steps", 10)
 		var box := BoxMesh.new()
 		box.size = bounds
 		var shaft := MeshInstance3D.new()
@@ -155,14 +157,15 @@ static func build_lights(target: Node3D, train: Node3D, authored: Array) -> void
 	var fixtures := Node3D.new()
 	fixtures.name = "V048_Light_Rig"
 	target.add_child(fixtures)
-	_add_station_fill(fixtures, "LavenderSkyFill", SKY_FILL_FROM, Color("#b5b5f2"), 0.36)
+	var web := OS.has_feature("web")
+	_add_station_fill(fixtures, "LavenderSkyFill", SKY_FILL_FROM, Color("#b5b5f2"), 0.44 if web else 0.36)
 	_add_station_fill(fixtures, "PeachCloudBounce", CLOUD_BOUNCE_FROM, Color("#ffd1b8"), 0.79)
 	for data in authored:
 		var source_name: String = data["name"]
 		if source_name.begins_with("柱灯发光") or source_name.begins_with("车厢暖灯"):
 			# The rebuilt lanterns now own their light sources.
 			continue
-		var light := _create_light(data)
+		var light := _create_light(data, web)
 		if light == null:
 			continue
 		light.light_volumetric_fog_energy = 0.0
@@ -180,7 +183,7 @@ static func build_lights(target: Node3D, train: Node3D, authored: Array) -> void
 			light.light_color = Color("#ffd09a")
 			light.light_volumetric_fog_energy = 1.25
 		light.light_cull_mask = 19
-		light.shadow_caster_mask = 19
+		light.shadow_caster_mask = 1 if web else 19
 		var aboard := source_name.begins_with("车内顶棚") or source_name.begins_with("司机室")
 		if source_name.begins_with("南侧原照明") or source_name.begins_with("机车正面") or aboard:
 			light.light_cull_mask = 2
@@ -200,7 +203,7 @@ static func _add_station_fill(parent: Node3D, title: String, source: Vector3, ti
 	parent.add_child(fill)
 
 
-static func _create_light(data: Dictionary) -> Light3D:
+static func _create_light(data: Dictionary, web: bool) -> Light3D:
 	var name_in_blender: String = data["name"]
 	var power := float(data["energy"])
 	match data["type"]:
@@ -217,6 +220,11 @@ static func _create_light(data: Dictionary) -> Light3D:
 			sun.directional_shadow_split_2 = 0.23
 			sun.directional_shadow_split_3 = 0.51
 			sun.directional_shadow_blend_splits = true
+			if web:
+				# The floor bake carries the far window pattern. Render one sharp
+				# shadow map for nearby station architecture.
+				sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+				sun.directional_shadow_max_distance = 58.0
 			return sun
 		"AREA":
 			var area := AreaLight3D.new()
@@ -233,7 +241,7 @@ static func _create_light(data: Dictionary) -> Light3D:
 			area.light_energy = power * 0.0165
 			area.light_specular = 0.32
 			area.light_size = minf(width, height) * 0.33
-			area.shadow_enabled = name_in_blender.begins_with("月台斜光")
+			area.shadow_enabled = not web and name_in_blender.begins_with("月台斜光")
 			area.shadow_bias = 0.072
 			area.shadow_normal_bias = 0.7
 			return area
@@ -251,6 +259,7 @@ static func prepare_model(root: Node3D, layer_mask: int) -> Dictionary:
 	var shared: Dictionary = {}
 	var stone_surfaces: Dictionary = {}
 	var compatibility := RenderingServer.get_current_rendering_method() == "gl_compatibility"
+	var web := OS.has_feature("web")
 	var glazing_reflection: Texture2D = GLASS_REFLECTION
 	if layer_mask == 1 and DisplayServer.get_name() != "headless":
 		var panorama := GLASS_REFLECTION.get_image()
@@ -294,7 +303,7 @@ static func prepare_model(root: Node3D, layer_mask: int) -> Dictionary:
 				var bounds := mesh.get_aabb()
 				mesh.set_instance_shader_parameter("generated_origin", bounds.position)
 				mesh.set_instance_shader_parameter("generated_size", bounds.size)
-			if replacement is ShaderMaterial and replacement.shader == ARCHITECTURE and (mesh.layers & 1) != 0:
+			if not web and replacement is ShaderMaterial and replacement.shader == ARCHITECTURE and (mesh.layers & 1) != 0:
 				# Keep the original small bevels and mouldings in the platform views.
 				mesh.lod_bias = 1.9
 			if replacement is ShaderMaterial and replacement.shader == STONE:
@@ -304,9 +313,55 @@ static func prepare_model(root: Node3D, layer_mask: int) -> Dictionary:
 	if layer_mask == 1:
 		TrackBallast.build(root)
 		_line_suitcase_seams(root)
+		if web:
+			_batch_bridge(root)
 	if layer_mask in [1, 2]:
 		WallLanterns.install(root, GLASS_REFLECTION, layer_mask == 2)
 	return stone_surfaces
+
+
+static func _batch_bridge(root: Node3D) -> void:
+	var sections: Dictionary = {}
+	for item in root.find_children("*", "MeshInstance3D", true, false):
+		var part := item as MeshInstance3D
+		var title := String(part.name)
+		if part.layers != 16 or not part.visible or not part.mesh is ArrayMesh:
+			continue
+		if not (title.begins_with("临轨钢拱") or title.begins_with("背轨钢拱")
+				or title.begins_with("临轨桥墩") or title.begins_with("背轨桥墩")):
+			continue
+		var position := root.to_local(part.global_position)
+		var key := "%s:%d:%d" % [part.mesh.get_instance_id(), floori(position.x / 24.0), roundi(position.z)]
+		if not sections.has(key):
+			sections[key] = []
+		sections[key].append(part)
+
+	var from_world := root.global_transform.affine_inverse()
+	var materials_applied: Dictionary = {}
+	for parts: Array in sections.values():
+		if parts.size() < 2:
+			continue
+		var source: MeshInstance3D = parts[0]
+		var mesh_id := source.mesh.get_instance_id()
+		if not materials_applied.has(mesh_id):
+			var shared_mesh := source.mesh.duplicate() as ArrayMesh
+			for surface in shared_mesh.get_surface_count():
+				shared_mesh.surface_set_material(surface, source.get_active_material(surface))
+			materials_applied[mesh_id] = shared_mesh
+		var instances := MultiMesh.new()
+		instances.transform_format = MultiMesh.TRANSFORM_3D
+		instances.mesh = materials_applied[mesh_id]
+		instances.instance_count = parts.size()
+		for index in parts.size():
+			var part: MeshInstance3D = parts[index]
+			instances.set_instance_transform(index, from_world * part.global_transform)
+			part.hide()
+
+		var section := MultiMeshInstance3D.new()
+		section.multimesh = instances
+		section.layers = source.layers
+		section.cast_shadow = source.cast_shadow
+		root.add_child(section)
 
 
 static func _line_suitcase_seams(station: Node3D) -> void:
@@ -360,9 +415,11 @@ static func _surface_material(material: Material, layer_mask: int, open_glass_sh
 		glass.set_shader_parameter("sky_radiance", glazing_reflection)
 		if station_pane:
 			var canopy := source_name.contains("拱顶")
+			var web := OS.has_feature("web")
 			glass.set_shader_parameter("authored_station_glass", true)
 			glass.set_shader_parameter("canopy_glass", canopy)
-			glass.set_shader_parameter("reflection_roughness", 2.15 if canopy else 1.38)
+			glass.set_shader_parameter("web_glazing", web)
+			glass.set_shader_parameter("reflection_roughness", 0.95 if web else (2.15 if canopy else 1.38))
 		return glass
 	if source_name.begins_with("精修｜道砟"):
 		var bedding := ShaderMaterial.new()
@@ -386,7 +443,7 @@ static func _surface_material(material: Material, layer_mask: int, open_glass_sh
 		if layer_mask == 1:
 			if source_name in ["长条椅｜GLB 材质", "行李箱｜GLB 材质"]:
 				return _platform_prop_finish(material)
-			var finish := _track_finish(material) if track_section else _architecture_finish(material)
+			var finish := _track_finish(material) if track_section else _architecture_finish(material, glazing_reflection)
 			if finish != null:
 				return finish
 		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
@@ -448,10 +505,11 @@ static func _railcar_paint(source_name: String) -> ShaderMaterial:
 	return paint
 
 
-static func _architecture_finish(source: BaseMaterial3D) -> ShaderMaterial:
+static func _architecture_finish(source: BaseMaterial3D, glazing_reflection: Texture2D) -> ShaderMaterial:
 	var dark: Vector3
 	var light: Vector3
 	var roughness: float
+	var arch_metal := false
 	var coat := Vector2.ZERO
 	var grain_height := 0.0015
 	var aspect := Vector3.ONE
@@ -472,6 +530,7 @@ static func _architecture_finish(source: BaseMaterial3D) -> ShaderMaterial:
 			edge_finish = 1.0
 		"LIMINAL｜桥体":
 			textured = true
+			arch_metal = true
 			interior = Vector3(0.81, 0.79, 0.88)
 			track_face = Vector3(2.12, 1.61, 1.57)
 		"LIMINAL｜钢构凸缘":
@@ -507,6 +566,7 @@ static func _architecture_finish(source: BaseMaterial3D) -> ShaderMaterial:
 			roughness = 0.345
 			edge_finish = 0.90
 		"定稿｜拱肋铸铁":
+			arch_metal = true
 			dark = Vector3(0.020, 0.050, 0.111)
 			light = Vector3(0.047, 0.111, 0.224)
 			roughness = 0.41
@@ -516,6 +576,7 @@ static func _architecture_finish(source: BaseMaterial3D) -> ShaderMaterial:
 			north_face = Vector3(0.55, 0.51, 0.57)
 			edge_finish = 0.85
 		"定稿｜压边钢":
+			arch_metal = true
 			dark = Vector3(0.0423, 0.0931, 0.1746)
 			light = Vector3(0.0999, 0.1779, 0.3185)
 			roughness = 0.34
@@ -567,7 +628,11 @@ static func _architecture_finish(source: BaseMaterial3D) -> ShaderMaterial:
 	finish.set_shader_parameter("interior_tint", interior)
 	finish.set_shader_parameter("track_face_tint", track_face)
 	finish.set_shader_parameter("north_face_tint", north_face)
-	finish.set_shader_parameter("metalness", source.metallic)
+	var web_metal := arch_metal and OS.has_feature("web")
+	finish.set_shader_parameter("metalness", 0.83 if web_metal else source.metallic)
+	if web_metal:
+		finish.set_shader_parameter("use_arch_radiance", true)
+		finish.set_shader_parameter("arch_radiance", glazing_reflection)
 	finish.set_shader_parameter("exposed_metal_scale", exposed_metal_scale)
 	finish.set_shader_parameter("edge_finish", edge_finish)
 	if textured:
@@ -578,11 +643,11 @@ static func _architecture_finish(source: BaseMaterial3D) -> ShaderMaterial:
 		finish.set_shader_parameter("finish_map", source.roughness_texture)
 		finish.set_shader_parameter("normal_map", source.normal_texture)
 		finish.set_shader_parameter("normal_depth", lerpf(source.normal_scale * 0.85, source.normal_scale, edge_finish))
-		finish.set_shader_parameter("roughness_base", source.roughness)
+		finish.set_shader_parameter("roughness_base", source.roughness * (0.82 if web_metal else 1.0))
 		return finish
 	finish.set_shader_parameter("dark_pigment", dark)
 	finish.set_shader_parameter("light_pigment", light)
-	finish.set_shader_parameter("roughness_base", roughness)
+	finish.set_shader_parameter("roughness_base", roughness * (0.76 if web_metal else 1.0))
 	finish.set_shader_parameter("coat_weight", coat.x)
 	finish.set_shader_parameter("coat_roughness", coat.y)
 	finish.set_shader_parameter("noise_aspect", aspect)
@@ -664,8 +729,6 @@ static func add_cloud_volume(target: Node3D) -> MeshInstance3D:
 	appearance.set_shader_parameter("cloud_min", lower)
 	appearance.set_shader_parameter("cloud_max", upper)
 	appearance.set_shader_parameter("authored_density_max", float(data["max_density"]))
-	if web:
-		appearance.set_shader_parameter("march_steps", 74)
 	var box := BoxMesh.new()
 	box.size = upper - lower
 	var instance := MeshInstance3D.new()
