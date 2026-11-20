@@ -32,7 +32,8 @@ void fragment() {
 	if (sunlit_cloud) {
 		float facing_sunset = mix(0.22, 0.68, smoothstep(-190.0, 370.0, -cloud_position_z));
 		float cloud_edge = smoothstep(0.23, 0.92, dot(pigment, vec3(0.2126, 0.7152, 0.0722)));
-		pigment *= 1.07 * mix(vec3(1.0), vec3(1.12, 1.01, 0.92), facing_sunset * cloud_edge * 0.40);
+		pigment *= 1.04 * mix(vec3(1.0), vec3(1.02, 0.84, 0.70),
+			cloud_edge * mix(0.46, 0.72, facing_sunset));
 	}
 	vec3 color = pigment * balance;
 #if CURRENT_RENDERER == RENDERER_COMPATIBILITY

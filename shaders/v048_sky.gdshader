@@ -14,7 +14,7 @@ void sky() {
 	float alignment = dot(ray, sun_from);
 	float disc = smoothstep(0.999977, 0.999989, alignment);
 	float aureole = exp2((alignment - 1.0) * 1650.0);
-	COLOR += vec3(1.0, 0.70, 0.44) * (9.0 * disc + 0.16 * aureole);
+	COLOR += vec3(1.0, 0.61, 0.32) * (4.0 * disc + 0.12 * aureole);
 #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
 	COLOR = linear_to_display(COLOR);
 #endif
