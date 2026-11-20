@@ -10,6 +10,7 @@ uniform vec3 volume_min;
 uniform vec3 volume_max;
 uniform vec3 sun_from;
 uniform int march_steps = 20;
+uniform bool dusk = false;
 varying vec3 box_world_position;
 
 void vertex() {
@@ -33,8 +34,9 @@ void fragment() {
 		float inside = smoothstep(0.0, 0.36, min(edge.x, min(edge.y, edge.z)));
 		scattering += platform_sunlight(point, sun_from, 5.2) * inside;
 	}
-	float opacity = min(0.18, 1.0 - exp(-0.21 * scattering * stride));
+	float density = dusk ? 0.17 : 0.21;
+	float opacity = min(dusk ? 0.15 : 0.18, 1.0 - exp(-density * scattering * stride));
 	if (opacity < 0.003) discard;
-	ALBEDO = linear_to_display(vec3(1.28, 1.03, 0.76));
+	ALBEDO = linear_to_display(dusk ? vec3(1.14, 0.80, 0.54) : vec3(1.28, 1.03, 0.76));
 	ALPHA = opacity;
 }

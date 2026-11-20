@@ -7,6 +7,7 @@ shader_type spatial;
 uniform sampler2D metalwork : filter_linear_mipmap_anisotropic, repeat_disable;
 uniform sampler2D paint_radiance : filter_linear, repeat_enable;
 uniform int paint_part = 0;
+uniform bool dusk = false;
 varying float railway_height;
 varying vec3 paint_coordinates;
 
@@ -26,14 +27,18 @@ vec3 paint_ramp(vec3 dark, vec3 light, float factor, float start, float end) {
 vec3 enamel_reflection(vec3 reflected, float facing, float ivory, float seam) {
 	vec2 uv = vec2(0.5 + atan(reflected.x, -reflected.z) / TAU,
 		0.5 - asin(clamp(reflected.y, -1.0, 1.0)) / PI);
-	vec3 sky = min(texture(paint_radiance, uv).rgb, vec3(1.35));
+	vec3 sky = min(texture(paint_radiance, uv).rgb, vec3(dusk ? 1.20 : 1.35));
+	if (dusk) {
+		sky *= vec3(0.99, 0.86, 0.73);
+	}
 	float upper = smoothstep(-0.25, 0.26, reflected.y);
 	float grazing = pow(1.0 - facing, 3.1);
 	// Wide reflections read across the curved enamel without masking the stamped panel lines.
 	float ribbon = (1.0 - smoothstep(0.035, 0.185, abs(reflected.y - 0.24)))
 		* smoothstep(-0.68, 0.21, reflected.x);
 	vec3 highlight = sky * (0.029 + 0.15 * grazing) * mix(0.38, 1.0, upper);
-	highlight += vec3(0.40, 0.60, 0.90) * ribbon * (0.050 + 0.13 * grazing);
+	highlight += dusk ? vec3(0.44, 0.51, 0.69) * ribbon * (0.041 + 0.105 * grazing)
+		: vec3(0.40, 0.60, 0.90) * ribbon * (0.050 + 0.13 * grazing);
 	return highlight * mix(1.0, 0.63, ivory) * (1.0 - 0.48 * seam);
 }
 
@@ -73,14 +78,15 @@ void fragment() {
 		blue_tone = mix(blue_tone, vec3(0.50, 0.56, 0.65), top * 0.86);
 		vec3 metal_tone = mix(vec3(1.0), vec3(1.65, 1.78, 1.85), outward);
 		ALBEDO = min(paint * mix(mix(blue_tone, cream_tone, cream), metal_tone, metal), vec3(1.0));
-		ROUGHNESS = mix(mix(0.255, 0.315, cream) + 0.078 * grain, 0.27, metal);
+		float roof_finish = dusk && roof ? 0.048 : 0.0;
+		ROUGHNESS = mix(mix(0.255, 0.315, cream) + roof_finish + 0.078 * grain, 0.27, metal);
 		METALLIC = mix(0.29, 0.15, cream) + 0.53 * metal;
 		float principled_weight = side ? 0.68 + 0.32 * max(cream, metal) : 1.0;
 		float ior_level = side ? 0.037 + 0.229 * cream : 0.185;
 		// Convert the Principled IOR response at 1.445 to Godot's dielectric F0.
 		SPECULAR = sqrt(0.414 * ior_level * principled_weight);
 		CLEARCOAT = mix(0.29, 0.19, cream) * principled_weight;
-		CLEARCOAT_ROUGHNESS = 0.19;
+		CLEARCOAT_ROUGHNESS = dusk && roof ? 0.25 : 0.19;
 		vec3 eye = normalize(mat3(INV_VIEW_MATRIX) * VIEW);
 		float facing = clamp(dot(world_normal, eye), 0.0, 1.0);
 		EMISSION = enamel_reflection(reflect(-eye, world_normal), facing, cream, detail.r)

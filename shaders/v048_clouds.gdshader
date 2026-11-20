@@ -13,6 +13,7 @@ uniform float authored_density_max = 1.2;
 uniform float extinction = 1.31;
 uniform float brightness = 1.0;
 uniform int march_steps = 124;
+uniform bool dusk = false;
 varying vec3 box_world_position;
 
 void vertex() {
@@ -56,6 +57,9 @@ void fragment() {
 	float sky_fill = smoothstep(0.27, 0.94, elevation / alpha);
 	float tone = clamp(1.28 * illumination / alpha + 0.105 * sky_fill - 0.13, 0.0, 1.0);
 	vec3 color = cloud_color(tone) * (1.10 + 0.32 * tone) * brightness;
+	if (dusk) {
+		color *= mix(vec3(0.99, 0.97, 0.96), vec3(0.98, 0.86, 0.74), smoothstep(0.35, 0.92, tone));
+	}
 #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
 	color = linear_to_display(color);
 #endif

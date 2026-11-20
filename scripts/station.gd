@@ -9,6 +9,9 @@ const BoardingMotion := preload("res://scripts/boarding_motion.gd")
 const WebRenderBudget := preload("res://scripts/web_render_budget.gd")
 const KEYS := ["platform", "overlook"]
 const CAPTURE_KEYS := ["platform", "overlook", "viaduct", "carriage"]
+# Track-side overview matched to the station clock and bridge lamps in the reference.
+const CLOUD_VIEW_POSITION := Vector3(60.599, 32.342, 51.155)
+const CLOUD_VIEW_ROTATION := Vector3(-0.119317, 0.859507, 0.0)
 const CLOUD_SPEED := 21.0
 # West is negative X. The whole consist still fits on the modeled track here.
 const WEST_APPROACH_X := -46.0
@@ -158,6 +161,9 @@ func _pose_camera(key: String) -> void:
 	framing.fov = float(pose["fov"])
 	framing.near = float(pose["near"])
 	framing.far = float(pose["far"])
+	if key == "overlook" and OS.has_feature("web"):
+		framing.position = CLOUD_VIEW_POSITION
+		framing.rotation = CLOUD_VIEW_ROTATION
 	framing.make_current()
 
 
