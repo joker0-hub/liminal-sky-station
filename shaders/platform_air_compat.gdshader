@@ -33,8 +33,8 @@ void fragment() {
 		float inside = smoothstep(0.0, 0.36, min(edge.x, min(edge.y, edge.z)));
 		scattering += platform_sunlight(point, sun_from, 5.2) * inside;
 	}
-	float opacity = min(0.15, 1.0 - exp(-0.17 * scattering * stride));
+	float opacity = min(0.18, 1.0 - exp(-0.21 * scattering * stride));
 	if (opacity < 0.003) discard;
-	ALBEDO = linear_to_display(vec3(1.14, 0.80, 0.54));
+	ALBEDO = linear_to_display(vec3(1.28, 1.03, 0.76));
 	ALPHA = opacity;
 }

@@ -64,7 +64,7 @@ static func build_environment(target: Node3D) -> Environment:
 	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color(0.455, 0.583, 0.835).linear_to_srgb()
-	environment.ambient_light_energy = 0.49 if forward else 0.64
+	environment.ambient_light_energy = 0.54 if web else (0.49 if forward else 0.64)
 	environment.ambient_light_sky_contribution = 0.0
 	environment.tonemap_mode = Environment.TONE_MAPPER_AGX
 	environment.tonemap_exposure = pow(2.0, -0.52)
@@ -180,11 +180,10 @@ static func build_lights(target: Node3D, train: Node3D, authored: Array) -> void
 		if light is DirectionalLight3D and source_name.begins_with("北侧"):
 			# From the high windows on camera right, angled toward the front of the platform.
 			light.basis = Basis.looking_at(-SUN_FROM.normalized(), Vector3.UP)
-			light.light_color = Color("#ffc085")
-			light.light_volumetric_fog_energy = 0.98
+			light.light_color = Color("#ffd09a")
+			light.light_volumetric_fog_energy = 1.25
 		light.light_cull_mask = 19
-		# The roof and walls shelter the cabin from the outdoor light.
-		light.shadow_caster_mask = 3 if web else 19
+		light.shadow_caster_mask = 1 if web else 19
 		var aboard := source_name.begins_with("车内顶棚") or source_name.begins_with("司机室")
 		if source_name.begins_with("南侧原照明") or source_name.begins_with("机车正面") or aboard:
 			light.light_cull_mask = 2
@@ -211,10 +210,8 @@ static func _create_light(data: Dictionary, web: bool) -> Light3D:
 		"SUN":
 			var sun := DirectionalLight3D.new()
 			var primary := name_in_blender.begins_with("北侧")
-			sun.light_energy = power * (1.92 if primary else 0.19)
-			sun.light_angular_distance = 1.46 if primary else rad_to_deg(float(data["angle"]))
-			if primary:
-				sun.light_specular = 0.34
+			sun.light_energy = power * (2.70 if primary else 0.19)
+			sun.light_angular_distance = 1.18 if primary else rad_to_deg(float(data["angle"]))
 			sun.shadow_enabled = primary
 			sun.shadow_bias = 0.029
 			sun.shadow_normal_bias = 0.48

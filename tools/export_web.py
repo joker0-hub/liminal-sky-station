@@ -57,9 +57,8 @@ def optimize_geometry(scratch, staged_project):
         ],
         check=True,
     )
-    # The train shares mesh surfaces across the shell and the detailed walkable cabin.
-    station = staged_project / "assets/v048/station-v048.glb"
-    subprocess.run([node, str(tool), str(station)], check=True)
+    models = staged_project / "assets/v048"
+    subprocess.run([node, str(tool), str(models / "station-v048.glb"), str(models / "train-v048.glb")], check=True)
 
 
 def export(godot, destination):
