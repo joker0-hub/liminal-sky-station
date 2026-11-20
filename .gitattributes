@@ -1,0 +1,5 @@
+assets/v048/station-v048.glb filter=lfs diff=lfs merge=lfs -text
+*.gd text eol=lf
+*.gdshader text eol=lf
+*.gdshaderinc text eol=lf
+*.cmd text eol=crlf

@@ -1,0 +1,28 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/station.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/v048/station-v048.glb" id="2"]
+[ext_resource type="PackedScene" path="res://assets/v048/train-v048.glb" id="3"]
+[ext_resource type="PackedScene" path="res://assets/v048/sky-cards-v048.glb" id="4"]
+[ext_resource type="Script" path="res://scripts/walker.gd" id="5"]
+
+[node name="Liminal" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Station" parent="." instance=ExtResource("2")]
+
+[node name="Train" type="Node3D" parent="."]
+
+[node name="Railcars" parent="Train" instance=ExtResource("3")]
+
+[node name="DistantScenery" parent="." instance=ExtResource("4")]
+
+[node name="FramingCamera" type="Camera3D" parent="."]
+transform = Transform3D(0.006159613, -0.000000001, -0.99998105, 0.013140095, 0.9999137, 0.000080929, 0.99989474, -0.013140344, 0.006159612, 34.65, 11.48, -0.1)
+current = true
+fov = 52.569763
+near = 0.1
+far = 1400.0
+
+[node name="Walker" type="CharacterBody3D" parent="."]
+script = ExtResource("5")
