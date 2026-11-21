@@ -6,35 +6,50 @@
 	<title>$GODOT_PROJECT_NAME</title>
 	$GODOT_HEAD_INCLUDE
 	<style>
-		:root { color-scheme: dark; background: #111b2b; color: #f4ecdf; }
-		body { margin: 0; overflow: hidden; font: 15px/1.5 system-ui, sans-serif; }
+		:root {
+			color-scheme: dark;
+			background: #101d2e;
+			color: #fff5e7;
+			--brass: #f2cd9e;
+			--seam: #d7ad7460;
+		}
+		body { margin: 0; overflow: hidden; font: 13px/1.5 system-ui, sans-serif; }
 		#canvas { display: block; width: 100vw; height: 100dvh; outline: none; touch-action: none; }
 		#status {
-			position: fixed; inset: 0; display: grid; place-content: center; justify-items: center;
-			gap: 12px; padding: 24px; text-align: center;
-			background: radial-gradient(ellipse at 50% 36%, #273e58, #111b2b 66%);
+			position: fixed; inset: 0; display: grid; place-items: center; padding: 18px;
+			background: radial-gradient(ellipse at 50% 40%, #29425b, #101d2e 70%);
 		}
 		#status[hidden], [hidden] { display: none; }
-		#status img { width: 64px; height: 64px; object-fit: contain; }
-		h1 { margin: 0; font: 500 clamp(28px, 6vw, 48px)/1.2 Georgia, serif; letter-spacing: 0.14em; }
-		progress { width: min(64vw, 260px); height: 9px; accent-color: #d6aa84; }
+		.status-card {
+			box-sizing: border-box; display: grid; justify-items: center; gap: 9px;
+			width: min(240px, 100%); padding: 18px; text-align: center;
+			border: 1px solid var(--seam); border-radius: 12px; background: #111e30ed;
+			box-shadow: 0 15px 44px #0c17275c;
+		}
+		#status img { width: 38px; height: 38px; object-fit: contain; }
+		h1 { margin: 0; font-size: clamp(20px, 5vw, 27px); font-weight: 580; letter-spacing: 0.09em; }
+		progress { width: min(100%, 154px); height: 6px; accent-color: var(--brass); }
 		p { margin: 0; color: #d2c4b7; }
 		button {
-			padding: 8px 20px; border: 1px solid #d6aa84; border-radius: 4px;
-			background: #25384d; color: #f4ecdf; font: inherit; cursor: pointer;
+			padding: 5px 12px; border: 1px solid var(--brass); border-radius: 6px;
+			background: var(--brass); color: #17283a; font: inherit; cursor: pointer;
 		}
+		button:hover { background: #ffe2bd; }
+		button:focus-visible { outline: 2px solid #fff0cc; outline-offset: 3px; }
 	</style>
 </head>
 <body>
 	<canvas id="canvas" aria-label="天空车站实时场景"></canvas>
 	<main id="status">
-		<img src="$GODOT_SPLASH" alt="">
-		<h1>天空车站</h1>
-		<p id="loading" role="status">正在加载车站</p>
-		<progress max="1" aria-label="车站资源加载进度"></progress>
-		<p id="status-notice" role="alert" hidden></p>
-		<button type="button" hidden>重新加载</button>
-		<noscript>请启用 JavaScript 进入车站。</noscript>
+		<section class="status-card" aria-labelledby="status-title">
+			<img src="$GODOT_SPLASH" alt="">
+			<h1 id="status-title">天空车站</h1>
+			<p id="loading" role="status">正在加载车站</p>
+			<progress max="1" aria-label="车站资源加载进度"></progress>
+			<p id="status-notice" role="alert" hidden></p>
+			<button type="button" hidden>重新加载</button>
+			<noscript>请启用 JavaScript 进入车站。</noscript>
+		</section>
 	</main>
 	<script src="$GODOT_URL"></script>
 	<script>
