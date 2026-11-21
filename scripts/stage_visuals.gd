@@ -4,6 +4,7 @@ const SKY := preload("res://shaders/v048_sky.gdshader")
 const WORLD_MAP := preload("res://assets/textures/sky-v048.exr")
 const GLASS_REFLECTION := preload("res://assets/textures/sky-glass-v048.exr")
 const PLATFORM_AIR_COMPAT := preload("res://shaders/platform_air_compat.gdshader")
+const ARCH_WINDOW_SHAFTS := preload("res://shaders/arch_window_shafts.gdshader")
 const CLOUDS := preload("res://shaders/v048_clouds.gdshader")
 const CARDS := preload("res://shaders/v048_cards.gdshader")
 const GLASS := preload("res://shaders/v048_glass.gdshader")
@@ -33,6 +34,29 @@ const SKY_FILL_FROM := Vector3(0.22, 0.62, 0.76)
 const CLOUD_BOUNCE_FROM := Vector3(0.58, 0.52, -0.63)
 const SHAFT_POSITION := Vector3(28.0, 15.85, -3.07)
 const SHAFT_SIZE := Vector3(17.5, 6.65, 3.15)
+const ARCH_WINDOW_Z := -4.389
+# Centers and half-widths measured in the main arch's central glazing plane.
+const ARCH_APERTURES := [
+	Vector4(16.55, 15.05, 0.60, 0.57),
+	Vector4(17.73, 16.38, 0.56, 0.72),
+	Vector4(19.27, 17.20, 0.68, 0.59),
+	Vector4(20.56, 14.18, 0.57, 0.46),
+]
+# Position on the deck (x, z), scale and heading. Large and small pots share the station atlas.
+const PLATFORM_FLOWERS := [
+	Vector4(32.57, -3.30, 0.82, -24.0),
+	Vector4(34.02, -3.45, 0.91, 32.0),
+	Vector4(25.99, -3.52, 0.87, 18.0),
+	Vector4(27.44, -3.20, 0.92, -31.0),
+	Vector4(18.24, -3.63, 1.13, -13.0),
+	Vector4(19.11, -3.48, 0.83, 28.0),
+	Vector4(4.95, -3.42, 1.08, 19.0),
+	Vector4(5.80, -3.47, 0.85, -31.0),
+	Vector4(-24.45, -0.94, 1.06, -10.0),
+	Vector4(-25.22, -1.19, 0.81, 26.0),
+	Vector4(-48.36, -0.93, 1.10, 32.0),
+	Vector4(-49.18, -1.15, 0.89, -18.0),
+]
 
 
 static func vector(values: Array) -> Vector3:
@@ -121,28 +145,17 @@ static func build_environment(target: Node3D) -> Environment:
 
 
 static func _add_platform_air(target: Node3D, forward: bool) -> void:
+	if OS.has_feature("web"):
+		_add_arch_window_shafts(target)
+		return
 	var material := ShaderMaterial.new()
 	if not forward:
 		var center := Vector3(28.0, 15.48, -2.4)
 		var bounds := Vector3(20.4, 7.9, 5.4)
 		material.shader = PLATFORM_AIR_COMPAT
 		material.render_priority = -10
-		material.set_shader_parameter("volume_min", center - bounds * 0.5)
-		material.set_shader_parameter("volume_max", center + bounds * 0.5)
 		material.set_shader_parameter("sun_from", SUN_FROM.normalized())
-		if OS.has_feature("web"):
-			material.set_shader_parameter("march_steps", 10)
-			material.set_shader_parameter("dusk", true)
-		var box := BoxMesh.new()
-		box.size = bounds
-		var shaft := MeshInstance3D.new()
-		shaft.name = "PlatformSunlight"
-		shaft.position = center
-		shaft.mesh = box
-		shaft.material_override = material
-		shaft.layers = 8
-		shaft.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		target.add_child(shaft)
+		_add_air_proxy(target, "PlatformSunlight", AABB(center - bounds * 0.5, bounds), material)
 		return
 	var air := FogVolume.new()
 	air.name = "PlatformSunlight"
@@ -153,6 +166,33 @@ static func _add_platform_air(target: Node3D, forward: bool) -> void:
 	material.set_shader_parameter("sun_from", SUN_FROM.normalized())
 	air.material = material
 	target.add_child(air)
+
+
+static func _add_arch_window_shafts(target: Node3D) -> void:
+	var material := ShaderMaterial.new()
+	material.shader = ARCH_WINDOW_SHAFTS
+	material.render_priority = -9
+	material.set_shader_parameter("sun_from", SUN_FROM.normalized())
+	material.set_shader_parameter("window_z", ARCH_WINDOW_Z)
+	material.set_shader_parameter("panes", PackedVector4Array(ARCH_APERTURES))
+	# Start the visible volume inside the hall, clear of the glass.
+	var bounds := AABB(Vector3(15.8, 10.513, ARCH_WINDOW_Z + 0.43), Vector3(14.3, 7.5, 6.42))
+	_add_air_proxy(target, "MainArchWindowShafts", bounds, material)
+
+
+static func _add_air_proxy(target: Node3D, node_name: String, bounds: AABB, material: ShaderMaterial) -> void:
+	material.set_shader_parameter("volume_min", bounds.position)
+	material.set_shader_parameter("volume_max", bounds.end)
+	var box := BoxMesh.new()
+	box.size = bounds.size
+	var volume := MeshInstance3D.new()
+	volume.name = node_name
+	volume.position = bounds.get_center()
+	volume.mesh = box
+	volume.material_override = material
+	volume.layers = 8
+	volume.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	target.add_child(volume)
 
 
 static func build_lights(target: Node3D, train: Node3D, authored: Array) -> void:
@@ -315,10 +355,27 @@ static func prepare_model(root: Node3D, layer_mask: int) -> Dictionary:
 		TrackBallast.build(root)
 		_line_suitcase_seams(root)
 		if web:
+			_add_platform_flowers(root)
 			_batch_bridge(root)
 	if layer_mask in [1, 2]:
 		WallLanterns.install(root, GLASS_REFLECTION, layer_mask == 2)
 	return stone_surfaces
+
+
+static func _add_platform_flowers(station: Node3D) -> void:
+	var source := station.find_child("绣球花盆 03*", true, false) as MeshInstance3D
+	if source == null:
+		return
+	var floor_height := station.to_local(source.global_position).y
+	for placement: Vector4 in PLATFORM_FLOWERS:
+		var flowers := MeshInstance3D.new()
+		flowers.name = "月台花盆"
+		flowers.mesh = source.mesh
+		flowers.layers = source.layers
+		flowers.position = Vector3(placement.x, floor_height, placement.y)
+		flowers.scale = source.scale * placement.z
+		flowers.rotation.y = deg_to_rad(placement.w)
+		station.add_child(flowers, true)
 
 
 static func _batch_bridge(root: Node3D) -> void:
@@ -445,6 +502,12 @@ static func _surface_material(material: Material, layer_mask: int, open_glass_sh
 		if layer_mask == 1:
 			if source_name in ["长条椅｜GLB 材质", "行李箱｜GLB 材质"]:
 				return _platform_prop_finish(material)
+			if OS.has_feature("web") and source_name.begins_with("精修｜盲道 ｜砂面"):
+				var tactile := material.duplicate() as BaseMaterial3D
+				tactile.albedo_color = Color(1.0, 0.98, 0.84)
+				tactile.roughness = 0.66
+				tactile.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+				return tactile
 			var finish := _track_finish(material) if track_section else _architecture_finish(material)
 			if finish != null:
 				return finish
@@ -494,6 +557,10 @@ static func _railcar_paint(source_name: String) -> ShaderMaterial:
 		part = 4
 	elif source_name.begins_with("精修｜钢轮"):
 		part = 5
+	elif OS.has_feature("web") and source_name.begins_with("精修｜列车包边"):
+		part = 6
+	elif OS.has_feature("web") and source_name.begins_with("精修｜列车紧固件"):
+		part = 7
 	elif not source_name.begins_with("定稿｜列车 · 象牙"):
 		return null
 	var paint := ShaderMaterial.new()
@@ -503,6 +570,7 @@ static func _railcar_paint(source_name: String) -> ShaderMaterial:
 		paint.set_shader_parameter("paint_part", part)
 	if part > 0 and part < TRAIN_METALWORK.size():
 		paint.set_shader_parameter("metalwork", TRAIN_METALWORK[part])
+	if part in [1, 2, 3, 6, 7]:
 		paint.set_shader_parameter("paint_radiance", GLASS_REFLECTION)
 		paint.set_shader_parameter("dusk", OS.has_feature("web"))
 	return paint
