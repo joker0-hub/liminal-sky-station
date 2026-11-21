@@ -33,8 +33,6 @@ def limit_textures(staged_project):
         # Keep the long, narrow floor bakes sharp along the platform.
         limit = 1536 if source.name.startswith("sky-") else 2048
         settings = settings.replace("process/size_limit=0", f"process/size_limit={limit}")
-        if source.name.startswith("sky-glass-"):
-            settings = settings.replace("mipmaps/generate=false", "mipmaps/generate=true")
         source.write_text(settings, encoding="utf-8")
 
     for source in (staged_project / "assets/textures").glob("stone-*.import"):

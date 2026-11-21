@@ -34,8 +34,8 @@ void fragment() {
 		} else {
 			float fresnel = glass_fresnel(facing, 1.45);
 			ALBEDO = reflected_sky + vec3(0.26, 0.23, 0.17) * sheen;
-			ALPHA = canopy_glass ? 0.026 + 0.205 * pow(1.0 - facing, 2.9) + 0.040 * sheen
-				: min(0.25, 0.018 + 0.40 * fresnel + 0.047 * sheen);
+			ALPHA = canopy_glass ? 0.060 + 0.18 * pow(1.0 - facing, 2.9) + 0.040 * sheen
+				: min(0.25, 0.046 + 0.34 * fresnel + 0.047 * sheen);
 		}
 #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
 		ALBEDO = linear_to_display(ALBEDO);

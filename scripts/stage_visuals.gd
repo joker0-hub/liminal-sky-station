@@ -267,12 +267,6 @@ static func prepare_model(root: Node3D, layer_mask: int) -> Dictionary:
 	var stone_surfaces: Dictionary = {}
 	var compatibility := RenderingServer.get_current_rendering_method() == "gl_compatibility"
 	var web := OS.has_feature("web")
-	var glazing_reflection: Texture2D = GLASS_REFLECTION
-	if layer_mask == 1 and DisplayServer.get_name() != "headless":
-		var panorama := GLASS_REFLECTION.get_image()
-		if panorama and not panorama.is_empty() and not panorama.has_mipmaps():
-			panorama.generate_mipmaps()
-			glazing_reflection = ImageTexture.create_from_image(panorama)
 	for item in root.find_children("*", "MeshInstance3D", true, false):
 		var mesh := item as MeshInstance3D
 		var open_glass_sheet := String(mesh.name).begins_with("04_12_无色透明窗玻璃")
@@ -300,7 +294,7 @@ static func prepare_model(root: Node3D, layer_mask: int) -> Dictionary:
 			if track_section:
 				key = str(key) + "_track"
 			if not shared.has(key):
-				shared[key] = _surface_material(current, layer_mask, open_glass_sheet, track_section, glazing_reflection)
+				shared[key] = _surface_material(current, layer_mask, open_glass_sheet, track_section)
 			var replacement: Material = shared[key]
 			if replacement != current:
 				mesh.set_surface_override_material(index, replacement)
@@ -395,7 +389,7 @@ static func _line_suitcase_seams(station: Node3D) -> void:
 
 
 static func _surface_material(material: Material, layer_mask: int, open_glass_sheet: bool,
-		track_section: bool, glazing_reflection: Texture2D) -> Material:
+		track_section: bool) -> Material:
 	var source_name: String = material.resource_name
 	if layer_mask == 4 and material is BaseMaterial3D and material.albedo_texture != null:
 		var card := ShaderMaterial.new()
@@ -420,14 +414,14 @@ static func _surface_material(material: Material, layer_mask: int, open_glass_sh
 		glass.shader = SOLID_GLASS if station_pane and not open_glass_sheet else GLASS
 		glass.resource_name = source_name
 		glass.render_priority = 5
-		glass.set_shader_parameter("sky_radiance", glazing_reflection)
+		glass.set_shader_parameter("sky_radiance", GLASS_REFLECTION)
 		if station_pane:
 			var canopy := source_name.contains("拱顶")
 			var web := OS.has_feature("web")
 			glass.set_shader_parameter("authored_station_glass", true)
 			glass.set_shader_parameter("canopy_glass", canopy)
 			glass.set_shader_parameter("web_glazing", web)
-			glass.set_shader_parameter("reflection_roughness", 0.95 if web else (2.15 if canopy else 1.38))
+			glass.set_shader_parameter("reflection_roughness", 2.15 if canopy else 1.38)
 		return glass
 	if source_name.begins_with("精修｜道砟"):
 		var bedding := ShaderMaterial.new()
@@ -451,7 +445,7 @@ static func _surface_material(material: Material, layer_mask: int, open_glass_sh
 		if layer_mask == 1:
 			if source_name in ["长条椅｜GLB 材质", "行李箱｜GLB 材质"]:
 				return _platform_prop_finish(material)
-			var finish := _track_finish(material) if track_section else _architecture_finish(material, glazing_reflection)
+			var finish := _track_finish(material) if track_section else _architecture_finish(material)
 			if finish != null:
 				return finish
 		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
@@ -514,7 +508,7 @@ static func _railcar_paint(source_name: String) -> ShaderMaterial:
 	return paint
 
 
-static func _architecture_finish(source: BaseMaterial3D, glazing_reflection: Texture2D) -> ShaderMaterial:
+static func _architecture_finish(source: BaseMaterial3D) -> ShaderMaterial:
 	var dark: Vector3
 	var light: Vector3
 	var roughness: float
@@ -641,7 +635,7 @@ static func _architecture_finish(source: BaseMaterial3D, glazing_reflection: Tex
 	finish.set_shader_parameter("metalness", 0.83 if web_metal else source.metallic)
 	if web_metal:
 		finish.set_shader_parameter("use_arch_radiance", true)
-		finish.set_shader_parameter("arch_radiance", glazing_reflection)
+		finish.set_shader_parameter("arch_radiance", GLASS_REFLECTION)
 	finish.set_shader_parameter("exposed_metal_scale", exposed_metal_scale)
 	finish.set_shader_parameter("edge_finish", edge_finish)
 	if textured:
