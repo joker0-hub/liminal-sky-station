@@ -34,7 +34,8 @@ func _ready() -> void:
 	_set_fonts()
 	opening = _full_layer(self)
 	interface_root = _full_layer(self)
-	_build_opening()
+	if not OS.has_feature("web"):
+		_build_opening()
 	_build_interface()
 	interface_root.hide()
 
@@ -60,35 +61,25 @@ func _set_fonts() -> void:
 
 
 func _build_opening() -> void:
-	var card := PanelContainer.new()
-	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	card.custom_minimum_size.x = 322
-	var paper := _panel(Color("#111e30ed"), PANEL_EDGE, 13, Vector2(20, 16))
-	paper.shadow_color = Color("#0c17274d")
-	paper.shadow_size = 16
-	paper.shadow_offset = Vector2(0, 5)
-	card.add_theme_stylebox_override("panel", paper)
-	opening.add_child(card)
-	card.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	card.offset_left = 76
-	card.offset_right = 398
-	card.offset_top = -250
-	card.offset_bottom = -72
-
 	var copy := VBoxContainer.new()
 	copy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	copy.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	copy.add_theme_constant_override("separation", 11)
-	card.add_child(copy)
+	opening.add_child(copy)
+	copy.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	copy.offset_left = 96
+	copy.offset_right = 398
+	copy.offset_top = -234
+	copy.offset_bottom = -88
 	var brand := HBoxContainer.new()
 	brand.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	brand.add_theme_constant_override("separation", 8)
 	copy.add_child(brand)
 	brand.add_child(_emblem(23))
-	var caption := _label("L I M I N A L   S K Y   S T A T I O N", 12, GOLD, title_font)
+	var caption := _label("L I M I N A L   S K Y   S T A T I O N", 12, GOLD, title_font, true)
 	caption.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	brand.add_child(caption)
-	copy.add_child(_label("天空车站", 60, INK, OPENING_LETTERING))
+	copy.add_child(_label("天空车站", 60, INK, OPENING_LETTERING, true))
 	var enter := _button("进入车站  ↗")
 	enter.name = "EnterStation"
 	enter.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN

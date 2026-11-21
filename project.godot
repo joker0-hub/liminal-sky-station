@@ -35,4 +35,5 @@ textures/default_filters/anisotropic_filtering_level=4
 
 [physics]
 
+common/physics_interpolation=true
 3d/default_gravity=16.0

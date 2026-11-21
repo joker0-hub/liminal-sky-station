@@ -38,15 +38,19 @@ var doors_open := false
 var train_in_motion := false
 var active_view := 0
 var opening_active := true
+var last_walk_mouse_mode := Input.MOUSE_MODE_VISIBLE
 var notice_sequence := 0
 var station_clock: StationClock
 var web_budget: WebRenderBudget
+var web_enter_callback: JavaScriptObject
 
 
 func _ready() -> void:
 	metadata = Visuals.read_json("res://assets/v048/v048.json")
 	if metadata.is_empty():
 		push_error("v048 scene metadata is missing")
+		if OS.has_feature("web"):
+			JavaScriptBridge.get_interface("window").stationOpeningFailed()
 		return
 	stone_surfaces = Visuals.prepare_model(station, 1)
 	station_clock = StationClock.new()
@@ -99,7 +103,15 @@ func _ready() -> void:
 		enter_station()
 	else:
 		_pose_camera("viaduct")
+		if OS.has_feature("web"):
+			await RenderingServer.frame_post_draw
+			web_enter_callback = JavaScriptBridge.create_callback(_enter_from_browser)
+			JavaScriptBridge.get_interface("window").stationOpeningReady(web_enter_callback)
 		print("Station opening ready")
+
+
+func _enter_from_browser(_arguments: Array) -> void:
+	enter_station()
 
 
 func enter_station() -> void:
@@ -171,17 +183,23 @@ func begin_walk() -> void:
 	if opening_active or active_view != 0:
 		return
 	if not walker.walking:
-		var pose: Dictionary = metadata["cameras"]["platform"]
-		var place := Visuals.vector(pose["position"])
-		place.y = Collision.PLATFORM_TOP + 0.040
-		var front := Visuals.rotation_of(pose["rotation"]) * Vector3.FORWARD
-		walker.enter(place, front)
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		_spawn_walker()
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		walker.begin_mouse_capture()
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_update_hud()
 
 
+func _spawn_walker() -> void:
+	var pose: Dictionary = metadata["cameras"]["platform"]
+	var place := Visuals.vector(pose["position"])
+	place.y = Collision.PLATFORM_TOP + 0.040
+	walker.enter(place, Visuals.rotation_of(pose["rotation"]) * Vector3.FORWARD)
+
+
 func _update_hud() -> void:
-	hud.set_display(active_view, walker.walking, Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
+	last_walk_mouse_mode = Input.mouse_mode
+	hud.set_display(active_view, walker.walking, last_walk_mouse_mode == Input.MOUSE_MODE_CAPTURED)
 
 
 func _notice(content: String) -> void:
@@ -275,13 +293,11 @@ func _process(delta: float) -> void:
 		var movement := framing.basis * Vector3(planar.x, 0, planar.y) + Vector3.UP * vertical
 		if not movement.is_zero_approx():
 			_move_cloud_camera(movement.limit_length() * CLOUD_SPEED * delta)
-	if walker.walking and walker.position.y < 7.5:
-		walker.walking = false
-		active_view = 0
-		begin_walk()
+	if walker.walking and Input.mouse_mode != last_walk_mouse_mode:
+		_update_hud()
 	if reflection:
 		var moving_scene := train_in_motion or boarding.is_playing()
-		var enabled := reflection.follow(get_viewport().get_camera_3d(), true, moving_scene)
+		var enabled := reflection.follow(get_viewport().get_camera_3d(), walker.walking, moving_scene)
 		if reflecting != enabled:
 			reflecting = enabled
 			for stone: ShaderMaterial in stone_surfaces.values():
@@ -291,6 +307,12 @@ func _process(delta: float) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST and is_instance_valid(ambience):
 		ambience.stop()
+
+
+func _physics_process(_delta: float) -> void:
+	if walker.walking and walker.position.y < 7.5:
+		# A fall resets the interpolated camera at the spawn without recapturing the mouse.
+		_spawn_walker()
 
 
 func _unhandled_input(event: InputEvent) -> void:

@@ -22,7 +22,7 @@ def limit_textures(staged_project):
     for source in (staged_project / "assets/v048").glob("*_basecolor.jpg"):
         metadata = source.with_suffix(".jpg.import")
         settings = metadata.read_text(encoding="utf-8")
-        limit = 4096 if "行李箱" in source.name else 2048
+        limit = 2048 if "行李箱" in source.name and source.name.startswith("station-") else 1536
         settings = settings.replace("process/size_limit=0", f"process/size_limit={limit}")
         settings = settings.replace("compress/mode=0", "compress/mode=1")
         settings = settings.replace("compress/lossy_quality=0.7", "compress/lossy_quality=0.90")
@@ -30,8 +30,8 @@ def limit_textures(staged_project):
 
     for source in (staged_project / "assets/textures").glob("*.exr.import"):
         settings = source.read_text(encoding="utf-8")
-        # Keep the long, narrow floor bakes sharp along the platform.
-        limit = 1536 if source.name.startswith("sky-") else 2048
+        # The glass shader samples a blurred sky. Preserve extra detail in the visible sky and floor bakes.
+        limit = {"sky-glass-v048.exr": 768, "sky-v048.exr": 1024}.get(source.name.removesuffix(".import"), 2048)
         settings = settings.replace("process/size_limit=0", f"process/size_limit={limit}")
         source.write_text(settings, encoding="utf-8")
 
@@ -55,7 +55,8 @@ def optimize_geometry(scratch, staged_project):
         ],
         check=True,
     )
-    # The train shares mesh surfaces across the shell and the detailed walkable cabin.
+    # Railcar surfaces merge interior arches and luggage racks with the shell.
+    # Preserve their authored curves for close-up walking views.
     station = staged_project / "assets/v048/station-v048.glb"
     subprocess.run([node, str(tool), str(station)], check=True)
 
@@ -80,6 +81,8 @@ def export(godot, destination):
         )
         for license_file in (PROJECT / "assets/fonts").glob("*-OFL.txt"):
             shutil.copy2(license_file, output)
+        shutil.copy2(PROJECT / "assets/fonts/liminal-title.ttf", output)
+        shutil.copy2(PROJECT / "web/station-opening.webp", output)
 
         destination.mkdir(parents=True, exist_ok=True)
         for file in sorted(output.iterdir(), key=lambda path: path.name == "index.html"):

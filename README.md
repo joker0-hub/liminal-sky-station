@@ -2,7 +2,7 @@
 
 ## [▶ 在线进入天空车站](https://joker0-hub.github.io/liminal-sky-station/)
 
-在浏览器里漫游月台、飞进云海，看列车从西侧进站。首次加载约需下载 154 MB。
+在浏览器里漫游月台、飞进云海，看列车从西侧进站。开场显示加载进度，实时场景准备好后即可进入。引擎和场景文件未压缩时合计约 136 MB，实际下载量取决于服务器的传输压缩。
 
 [![天空车站开场，点击进入网页版](docs/sky-station-opening.webp)](https://joker0-hub.github.io/liminal-sky-station/)
 

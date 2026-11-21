@@ -274,6 +274,14 @@ static func _create_light(data: Dictionary, web: bool) -> Light3D:
 				sun.directional_shadow_max_distance = 58.0
 			return sun
 		"AREA":
+			if web:
+				# Reuse the lanterns' light type in WebGL to avoid compiling separate area-light variants.
+				var fill := OmniLight3D.new()
+				fill.omni_range = clampf(sqrt(power) * 1.9, 4.2, 85.0)
+				fill.omni_attenuation = 1.85
+				fill.light_energy = power * 0.005
+				fill.light_specular = 0.20
+				return fill
 			var area := AreaLight3D.new()
 			var width := maxf(0.08, float(data["width"]))
 			var rectangle: bool = data["shape"] in ["RECTANGLE", "ELLIPSE"]
@@ -288,7 +296,7 @@ static func _create_light(data: Dictionary, web: bool) -> Light3D:
 			area.light_energy = power * 0.0165
 			area.light_specular = 0.32
 			area.light_size = minf(width, height) * 0.33
-			area.shadow_enabled = not web and name_in_blender.begins_with("月台斜光")
+			area.shadow_enabled = name_in_blender.begins_with("月台斜光")
 			area.shadow_bias = 0.072
 			area.shadow_normal_bias = 0.7
 			return area

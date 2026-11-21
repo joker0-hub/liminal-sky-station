@@ -6,6 +6,7 @@ const PLATFORM_LAYER := 1 << 5
 const STILL_HEIGHT := 900
 const MOVING_HEIGHT := 540
 const WEB_HEIGHT := 324
+const WEB_WALK_HEIGHT := 216
 const WEB_MOTION_INTERVAL_MSEC := 33
 const SETTLE_MSEC := 160
 
@@ -44,8 +45,8 @@ func configure(source_environment: Environment) -> void:
 	reflection_camera.make_current()
 
 
-func follow(source: Camera3D, active: bool, moving_scene: bool) -> bool:
-	if not active or source == null:
+func follow(source: Camera3D, walking: bool, moving_scene: bool) -> bool:
+	if source == null:
 		return _hide_reflection()
 	var source_pose := source.get_camera_transform()
 	var altitude := source_pose.origin.y - DECK_HEIGHT
@@ -63,9 +64,11 @@ func follow(source: Camera3D, active: bool, moving_scene: bool) -> bool:
 	var now := Time.get_ticks_msec()
 	if camera_changed or moving_scene:
 		last_motion_msec = now
-	var moving := now - last_motion_msec < SETTLE_MSEC
-	# Keep the sampled viewport texture allocated while the Web camera moves.
-	var max_height := WEB_HEIGHT if web else (MOVING_HEIGHT if moving else STILL_HEIGHT)
+	var moving := walking or now - last_motion_msec < SETTLE_MSEC
+	# Keep a stable target size throughout a walk, including brief stops.
+	var max_height := MOVING_HEIGHT if moving else STILL_HEIGHT
+	if web:
+		max_height = WEB_WALK_HEIGHT if walking else WEB_HEIGHT
 	var height := clampi(roundi(display.y), 8, max_height)
 	var target_size := Vector2i(maxi(8, roundi(height * aspect)), height)
 	if not (needs_refresh or moving_scene or camera_changed or size != target_size):
